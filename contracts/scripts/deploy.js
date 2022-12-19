@@ -7,25 +7,73 @@
 const hre = require("hardhat");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+  const rsvpContractFactory = await hre.ethers.getContractFactory("EventRSVP");
+  const rsvpContract = await rsvpContractFactory.deploy();
+  await rsvpContract.deployed();
+  console.log("rsvpContract address", rsvpContract.address);
 
-  const lockedAmount = hre.ethers.utils.parseEther("1");
+  const [deployer, address1, address2] = await hre.ethers.getSigners();
 
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+  //mock data for event
+  let deposit = hre.ethers.utils.parseEther("1.0");
+  console.log("deposit", deposit);
+  let maxCapacity = 3;
+  let timestamp = 1718926202;
+  let eventDataCID =
+    "bafybeibhwfzx6oo5rymsxmkdxpmkfwyvbjrrwcl7cekmbzlupmp5ypkyfi";
 
-  await lock.deployed();
-
-  console.log(
-    `Lock with 1 ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
+  //create a event for mock data
+  let txn = await rsvpContract.createNewEvent(
+    timestamp,
+    deposit,
+    maxCapacity,
+    eventDataCID
   );
+
+  console.log("txn", txn);
+
+  let wait = await txn.wait();
+  console.log("NEW EVENT CREATED: ", wait.events[0].event, wait.events[0].args);
+
+  let eventId = wait.events[0].args.eventId;
+  console.log("EVENT ID: ", eventId);
+
+  txn = await rsvpContract.createNewRSVP(eventId, { value: deposit });
+  wait = await txn.wait();
+  console.log("NEW RSVP:", wait.events[0].event, wait.events[0].args);
+
+  txn = await rsvpContract
+    .connect(address1)
+    .createNewRSVP(eventId, { value: deposit });
+  wait = await txn.wait();
+  console.log("NEW RSVP:", wait.events[0].event, wait.events[0].args);
+
+  txn = await rsvpContract
+    .connect(address2)
+    .createNewRSVP(eventId, { value: deposit });
+  wait = await txn.wait();
+  console.log("NEW RSVP:", wait.events[0].event, wait.events[0].args);
+
+  txn = await rsvpContract.confirmAllAttendees(eventId);
+  wait = await txn.wait();
+  wait.events.forEach((event) =>
+    console.log("CONFIRMED:", event.args.attendeeAddress)
+  );
+
+  //wait for 10 year to withdraw unclaimed deposit ;)
+  await hre.network.provider.send("evm_increaseTime", [15778800000000]);
+  txn = await rsvpContract.withdrawUnclaimedDeposits(eventId);
+  wait = await txn.wait();
+  console.log("WITHDRAWN:", wait.events[0].event, wait.events[0].args);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const runMain = async () => {
+  try {
+    await main();
+    process.exit(0);
+  } catch (err) {
+    console.log(err);
+    process.exit(1);
+  }
+};
+runMain();

@@ -1,7 +1,21 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.9;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
 
 contract EventRSVP {
+    //events
+    event NewEventCreated(
+        bytes32 eventId,
+        address eventOwner,
+        uint256 eventTimestamp,
+        uint256 maxCapacity,
+        uint256 deposit,
+        string eventDataCID
+    );
+    event NewRSVP(bytes32 eventId, address attendeeAddress);
+    event ConfirmedAttendee(bytes32 eventId, address attendeeAddress);
+    event DepositsPaidOut(bytes32 eventId);
+
+
     struct CreateEvent {
         bytes32 eventId;
         string eventDataCID;
@@ -17,7 +31,7 @@ contract EventRSVP {
     mapping(bytes32 => CreateEvent) public idToEvent;
 
     //function to create new event
-    function createNewEvent (string calldata _eventDataCID, uint256 _eventTimestamp, uint256 _deposit, uint256 _maxCapacity) external {
+    function createNewEvent (uint256 _eventTimestamp, uint256 _deposit, uint256 _maxCapacity, string calldata _eventDataCID) external {
 
         //create a unique eventId
         bytes32 _eventId = keccak256(abi.encodePacked(msg.sender, address(this), _eventTimestamp, _deposit,_maxCapacity));
@@ -38,6 +52,14 @@ contract EventRSVP {
             _claimedRSVPs,
             false
         );
+         emit NewEventCreated(
+            _eventId,
+            msg.sender,
+            _eventTimestamp,
+            _maxCapacity,
+            _deposit,
+            _eventDataCID
+        );
     }
 
     //function to create new RSVP to the existing event
@@ -55,9 +77,10 @@ contract EventRSVP {
         require(myEvent.confirmedRSVPs.length < myEvent.maxCapacity, "MAX CAPACITY REACHED :(");
 
         for(uint8 i=0; i<myEvent.confirmedRSVPs.length; i++) {
-            require(myEvent.confirmedRSVPs[i] == msg.sender, "ALREADY RSVPed");
+            require(myEvent.confirmedRSVPs[i] != msg.sender, "ALREADY RSVPed");
         }
         myEvent.confirmedRSVPs.push(payable(msg.sender));
+        emit NewRSVP(_eventId, msg.sender);
     }
 
 
@@ -81,7 +104,7 @@ contract EventRSVP {
 
         //check if the person is not there in the claimRSVPs
         for(uint8 i; i<myEvent.claimedRSVPs.length; i++) {
-            require(myEvent.claimedRSVPs[i] == attendee, "ALREADY CLAIMED");
+            require(myEvent.claimedRSVPs[i] != attendee, "ALREADY CLAIMED");
         }
 
         //see the the event is not already PAID OUT
@@ -98,6 +121,7 @@ contract EventRSVP {
             myEvent.claimedRSVPs.pop();
         }
         require(sent, "Failed to send Ether");
+        emit ConfirmedAttendee(_eventId, msg.sender);
     }
 
     //function to confirm all alttendees at once
@@ -142,7 +166,7 @@ contract EventRSVP {
         if(!sent) myEvent.paidOut = false;
 
         require(sent, "Failed to send Ether");
+        emit DepositsPaidOut(_eventId);
     }
 
 }
-

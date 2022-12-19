@@ -4,7 +4,8 @@
   "description": "contracts to create events and stake tokens which will be refunded after you attend the event.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "script": "node scripts/deploy.js"
   },
   "keywords": [
     "solidity",
